@@ -2,7 +2,7 @@
 
 (c) 2026, Copyright JKP Application Development Services, all rights reserved
 
-An all-VBA rich text box look-alike for MSForms `UserForm`s. It renders formatted
+An all-VBA rich text box look-alike for MSForms `UserForms`. It renders formatted
 text with dynamic `Label` controls and uses a temporary `TextBox` for editing, so it
 does not require an external RichEdit or ActiveX control.
 
