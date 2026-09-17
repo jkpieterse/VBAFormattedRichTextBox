@@ -1,0 +1,9 @@
+# Generated VBA export/build output
+*.log
+
+# Excel temporary lock files
+~$*.xls*
+
+# Local editor and operating-system metadata
+.DS_Store
+Thumbs.db
