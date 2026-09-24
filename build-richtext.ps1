@@ -55,6 +55,7 @@ End Property
 Private Sub UserForm_Initialize()
     Set mcRichText = New clsRichTextBox
     Set mcRichText.HostFrame = Me.frRichText
+    mcRichText.WordWrap = True
     mcRichText.Markup = "This is <b>bold</b>, <i>italic</i>, <u>underlined</u>, and <span style=""color:#1F5F92"">colored</span>."
     UpdateInfo
 End Sub

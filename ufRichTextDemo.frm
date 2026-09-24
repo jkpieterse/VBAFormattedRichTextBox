@@ -1,6 +1,6 @@
 VERSION 5.00
 Begin {C62A69F0-16DC-11CE-9E98-00AA00574A4F} ufRichTextDemo 
-   Caption         =   "RichText Demo 1.0"
+   Caption         =   "RichText Demo 1.0.1"
    ClientHeight    =   9636.001
    ClientLeft      =   108
    ClientTop       =   456
@@ -13,11 +13,6 @@ Attribute VB_GlobalNameSpace = False
 Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
-
-
-
-
-
 '---------------------------------------------------------------------------------------
 ' File   : ufRichTextDemo
 ' Author : Jan Karel Pieterse
@@ -46,6 +41,7 @@ Private msAppName As String
 Private Sub UserForm_Initialize()
     Set mcRichText = New clsRichTextBox
     Set mcRichText.HostFrame = Me.frRichText
+    mcRichText.WordWrap = True
     ' Optional demo content: replace or remove this assignment on your own form.
     mcRichText.Markup = SampleMarkup()
 End Sub
@@ -56,6 +52,7 @@ End Sub
 '=======================================================================================
 Private Sub UserForm_Activate()
     If Not mcRichText Is Nothing Then mcRichText.SetFocus
+    Me.Caption = Sheet1.Range("A1").Value
 End Sub
 
 '=======================================================================================
@@ -118,7 +115,7 @@ End Sub
 ' Optional demo content. Replace this routine with the markup your own form needs.
 '---------------------------------------------------------------------------------------
 Private Function SampleMarkup() As String
-    SampleMarkup = "<b>This Rich Text Box uses HTML-like markup tags to set character formatting.</b>" & vbNewLine & vbNewLine
+    SampleMarkup = "<size=14><b>This Rich Text Box uses HTML-like markup tags to set character formatting.</b></size>" & vbNewLine & vbNewLine
     SampleMarkup = SampleMarkup & "Examples:" & vbNewLine & vbNewLine
     SampleMarkup = SampleMarkup & "&lt;b&gt;bold&lt;/b&gt; gives <b>bold</b> text." & vbNewLine
     SampleMarkup = SampleMarkup & "&lt;i&gt;italic&lt;/i&gt; gives <i>italic</i> text." & vbNewLine

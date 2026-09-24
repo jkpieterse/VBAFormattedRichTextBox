@@ -28,7 +28,8 @@ For background and a longer explanation, see the accompanying article:
 
 1. Import `clsRichTextCharacters.cls` and `clsRichTextBox.cls` into your VBA project.
 2. Add an `MSForms.Frame` to a `UserForm`.
-3. Create the control and attach it to the frame:
+3. Create the control and attach it to the frame. Enable `WordWrap` when text
+  should wrap within the host frame:
 
 ```vb
 Private WithEvents mcRichText As clsRichTextBox
@@ -36,6 +37,7 @@ Private WithEvents mcRichText As clsRichTextBox
 Private Sub UserForm_Initialize()
     Set mcRichText = New clsRichTextBox
     Set mcRichText.HostFrame = Me.frRichText
+    mcRichText.WordWrap = True
     mcRichText.Markup = "This is <b>bold</b> and <i>italic</i>."
 End Sub
 ```
@@ -91,7 +93,7 @@ and preserves the last valid content.
 ## Key members
 
 - **Content**: `Text`, `Markup`, `ReadOnly`
-- **Appearance**: `DefaultFontName`, `DefaultFontSize`, `DefaultForeColor`, `DefaultBackColor`
+- **Appearance**: `WordWrap`, `DefaultFontName`, `DefaultFontSize`, `DefaultForeColor`, `DefaultBackColor`
 - **Editing**: `BeginEdit`, `BeginSourceEdit`, `ToggleEditMode`, `CommitEdit`, `CancelEdit`
 - **Lifecycle**: `SetFocus`, `EnterExit`, `Resize`, `Terminate`
 - **Events**: `Change`, `EditCommitted`, `EditCancelled`, `ParseError`

@@ -37,6 +37,7 @@ Private mcolControlNames As Collection
 Private msEditText As String
 Private mbSourceMode As Boolean
 Private mbReadOnly As Boolean
+Private mbWordWrap As Boolean
 Private mbUpdating As Boolean
 Private msDefaultFontName As String
 Private msDefaultFontSize As Single
@@ -58,8 +59,8 @@ Private Const MC_KEY_SHIFT As Long = 1
 '=======================================================================================
 Public Property Set HostFrame(ByVal oFrame As MSForms.Frame)
     Set moHost = oFrame
-    msDefaultFontName = oFrame.Font.Name
-    msDefaultFontSize = oFrame.Font.Size
+    msDefaultFontName = oFrame.Font.name
+    msDefaultFontSize = oFrame.Font.size
     mlDefaultForeColor = oFrame.ForeColor
     mlDefaultBackColor = oFrame.BackColor
     mlHostBorderColor = oFrame.BorderColor
@@ -130,6 +131,17 @@ End Property
 ' Enable or disable user editing.
 Public Property Let ReadOnly(ByVal bValue As Boolean)
     mbReadOnly = bValue
+End Property
+
+' Return or set whether rendered text wraps within the host Frame.
+Public Property Get WordWrap() As Boolean
+    WordWrap = mbWordWrap
+End Property
+
+' Enable or disable word wrapping within the host Frame.
+Public Property Let WordWrap(ByVal bValue As Boolean)
+    mbWordWrap = bValue
+    Render
 End Property
 
 ' Return or set the default font name used by unformatted characters.
@@ -340,7 +352,7 @@ Public Sub Terminate()
     HideFocusBorder
     If Not moFocusProxy Is Nothing Then
         On Error Resume Next
-        moHost.Controls.Remove moFocusProxy.Name
+        moHost.Controls.Remove moFocusProxy.name
         On Error GoTo 0
     End If
     Set moFocusProxy = Nothing
@@ -398,7 +410,7 @@ End Sub
 Private Sub EndEditControls()
     If moEditBox Is Nothing Then Exit Sub
     On Error Resume Next
-    moHost.Controls.Remove moEditBox.Name
+    moHost.Controls.Remove moEditBox.name
     On Error GoTo 0
     Set moEditBox = Nothing
 End Sub
@@ -497,11 +509,11 @@ Private Sub ApplyPlainTextEdit(ByVal sValue As String)
     lOldLength = mlTextLength
     lNewLength = Len(sValue)
     Do While lPrefix < lOldLength And lPrefix < lNewLength
-        If Mid$(sOldText, lPrefix + 1, 1) <> Mid$(sValue, lPrefix + 1, 1) Then Exit Do
+        If mid$(sOldText, lPrefix + 1, 1) <> mid$(sValue, lPrefix + 1, 1) Then Exit Do
         lPrefix = lPrefix + 1
     Loop
     Do While lSuffix < lOldLength - lPrefix And lSuffix < lNewLength - lPrefix
-        If Mid$(sOldText, lOldLength - lSuffix, 1) <> Mid$(sValue, lNewLength - lSuffix, 1) Then Exit Do
+        If mid$(sOldText, lOldLength - lSuffix, 1) <> mid$(sValue, lNewLength - lSuffix, 1) Then Exit Do
         lSuffix = lSuffix + 1
     Loop
 
@@ -571,26 +583,26 @@ Private Function ParseMarkup(ByVal sMarkup As String) As Boolean
     vFormat = DefaultFormat()
     lPosition = 1
     Do While lPosition <= Len(sMarkup)
-        If Mid$(sMarkup, lPosition, 1) = "<" Then
+        If mid$(sMarkup, lPosition, 1) = "<" Then
             lTagEnd = InStr(lPosition + 1, sMarkup, ">")
             If lTagEnd = 0 Then
                 sError = "A markup tag is missing its closing >."
                 GoTo ParseFailed
             End If
-            sTag = Mid$(sMarkup, lPosition + 1, lTagEnd - lPosition - 1)
+            sTag = mid$(sMarkup, lPosition + 1, lTagEnd - lPosition - 1)
             If Not ApplyTag(sTag, vFormat, oFormatStack, sError) Then GoTo ParseFailed
             lPosition = lTagEnd + 1
-        ElseIf Mid$(sMarkup, lPosition, 1) = "&" And LCase$(Mid$(sMarkup, lPosition, 4)) = "&lt;" Then
+        ElseIf mid$(sMarkup, lPosition, 1) = "&" And LCase$(mid$(sMarkup, lPosition, 4)) = "&lt;" Then
             AppendCharacter "<", vFormat
             lPosition = lPosition + 4
-        ElseIf Mid$(sMarkup, lPosition, 1) = "&" And LCase$(Mid$(sMarkup, lPosition, 4)) = "&gt;" Then
+        ElseIf mid$(sMarkup, lPosition, 1) = "&" And LCase$(mid$(sMarkup, lPosition, 4)) = "&gt;" Then
             AppendCharacter ">", vFormat
             lPosition = lPosition + 4
-        ElseIf Mid$(sMarkup, lPosition, 1) = "&" And LCase$(Mid$(sMarkup, lPosition, 5)) = "&amp;" Then
+        ElseIf mid$(sMarkup, lPosition, 1) = "&" And LCase$(mid$(sMarkup, lPosition, 5)) = "&amp;" Then
             AppendCharacter "&", vFormat
             lPosition = lPosition + 5
         Else
-            sCharacter = Mid$(sMarkup, lPosition, 1)
+            sCharacter = mid$(sMarkup, lPosition, 1)
             AppendCharacter sCharacter, vFormat
             lPosition = lPosition + 1
         End If
@@ -629,12 +641,12 @@ Private Function ApplyTag(ByVal sRawTag As String, ByRef vFormat As Variant, ByV
         vFormat = FormatWithValue(vFormat, MC_UNDERLINE, True)
     ElseIf sTag = "s" Or sTag = "strike" Then
         vFormat = FormatWithValue(vFormat, MC_STRIKETHROUGH, True)
-    ElseIf Left$(sTag, 6) = "size=" Then
-        vFormat = FormatWithValue(vFormat, MC_FONT_SIZE, CSng(Mid$(sTag, 6)))
+    ElseIf Left$(sTag, 5) = "size=" Then
+        vFormat = FormatWithValue(vFormat, MC_FONT_SIZE, CSng(mid$(sTag, 6)))
     ElseIf Left$(sTag, 5) = "font=" Then
-        vFormat = FormatWithValue(vFormat, MC_FONT_NAME, Mid$(sTag, 6))
+        vFormat = FormatWithValue(vFormat, MC_FONT_NAME, mid$(sTag, 6))
     ElseIf Left$(sTag, 11) = "font color=" Then
-        vFormat = FormatWithValue(vFormat, MC_FORE_COLOR, ParseColor(Mid$(sTag, 12)))
+        vFormat = FormatWithValue(vFormat, MC_FORE_COLOR, ParseColor(mid$(sTag, 12)))
     ElseIf Left$(sTag, 5) = "span " Then
         sValue = StyleValue(sTag)
         vFormat = ApplyStyleText(vFormat, sValue)
@@ -660,7 +672,7 @@ End Function
 Private Function StyleValue(ByVal sTag As String) As String
     Dim lStart As Long
     lStart = InStr(1, sTag, "style=", vbTextCompare)
-    If lStart = 0 Then StyleValue = vbNullString Else StyleValue = Replace$(Mid$(sTag, lStart + 6), Chr$(34), vbNullString)
+    If lStart = 0 Then StyleValue = vbNullString Else StyleValue = Replace$(mid$(sTag, lStart + 6), Chr$(34), vbNullString)
 End Function
 
 ' Read one semicolon-delimited style value safely.
@@ -673,7 +685,7 @@ Private Function ReadStyleValue(ByVal sStyle As String, ByVal sKey As String) As
         If lStart = 0 Then Exit Function
         If lStart = 1 Then
             Exit Do
-        ElseIf Mid$(sStyle, lStart - 1, 1) = ";" Then
+        ElseIf mid$(sStyle, lStart - 1, 1) = ";" Then
             Exit Do
         End If
         lStart = lStart + Len(sKey)
@@ -681,7 +693,7 @@ Private Function ReadStyleValue(ByVal sStyle As String, ByVal sKey As String) As
     lStart = lStart + Len(sKey)
     lEnd = InStr(lStart, sStyle, ";")
     If lEnd = 0 Then lEnd = Len(sStyle) + 1
-    ReadStyleValue = Trim$(Mid$(sStyle, lStart, lEnd - lStart))
+    ReadStyleValue = Trim$(mid$(sStyle, lStart, lEnd - lStart))
 End Function
 
 ' Convert #RRGGBB markup into an MSForms color value.
@@ -689,7 +701,7 @@ Private Function ParseColor(ByVal sValue As String) As Long
     Dim sHex As String
     sHex = Replace$(Replace$(Replace$(Trim$(sValue), Chr$(34), vbNullString), "#", vbNullString), ";", vbNullString)
     If Len(sHex) <> 6 Then Err.Raise 5, TypeName(Me), "Colors must use #RRGGBB."
-    ParseColor = RGB(CLng("&H" & Mid$(sHex, 1, 2)), CLng("&H" & Mid$(sHex, 3, 2)), CLng("&H" & Mid$(sHex, 5, 2)))
+    ParseColor = RGB(CLng("&H" & mid$(sHex, 1, 2)), CLng("&H" & mid$(sHex, 3, 2)), CLng("&H" & mid$(sHex, 5, 2)))
 End Function
 
 ' Copy one format property into a complete format array.
@@ -784,7 +796,7 @@ Private Function ToMarkup() As String
         Loop
         vFormat = CharacterFormat(lPosition)
         sResult = sResult & OpenMarkup(vFormat)
-        sResult = sResult & EscapeMarkup(Mid$(msText, lPosition, lEnd - lPosition + 1))
+        sResult = sResult & EscapeMarkup(mid$(msText, lPosition, lEnd - lPosition + 1))
         sResult = sResult & CloseMarkup(vFormat)
         lPosition = lEnd + 1
     Loop
@@ -835,9 +847,9 @@ End Function
 Private Sub Render()
     Dim lPosition As Long
     Dim lEnd As Long
+    Dim lFragmentStart As Long
+    Dim lFragmentEnd As Long
     Dim sRun As String
-    Dim sName As String
-    Dim oLabel As MSForms.Label
     Dim sngLeft As Single
     Dim sngTop As Single
     Dim sngLineHeight As Single
@@ -851,13 +863,13 @@ Private Sub Render()
     End If
     sngLeft = 3
     sngTop = 3
-    sngDefaultLineHeight = MaxSingle(12, moHost.Font.Size * 1.25)
+    sngDefaultLineHeight = MaxSingle(12, moHost.Font.size * 1.25)
     sngLineHeight = sngDefaultLineHeight
     lPosition = 1
     Do While lPosition <= mlTextLength
-        If Mid$(msText, lPosition, 1) = vbCr Or Mid$(msText, lPosition, 1) = vbLf Then
-            If Mid$(msText, lPosition, 1) = vbCr And lPosition < mlTextLength Then
-                If Mid$(msText, lPosition + 1, 1) = vbLf Then lPosition = lPosition + 1
+        If mid$(msText, lPosition, 1) = vbCr Or mid$(msText, lPosition, 1) = vbLf Then
+            If mid$(msText, lPosition, 1) = vbCr And lPosition < mlTextLength Then
+                If mid$(msText, lPosition + 1, 1) = vbLf Then lPosition = lPosition + 1
             End If
             sngLeft = 3
             sngTop = sngTop + sngLineHeight
@@ -866,31 +878,90 @@ Private Sub Render()
         Else
             lEnd = lPosition
             Do While lEnd < mlTextLength
-                If Mid$(msText, lEnd + 1, 1) = vbCr Or Mid$(msText, lEnd + 1, 1) = vbLf Then Exit Do
+                If mid$(msText, lEnd + 1, 1) = vbCr Or mid$(msText, lEnd + 1, 1) = vbLf Then Exit Do
                 If Not SameFormat(lPosition, lEnd + 1) Then Exit Do
                 lEnd = lEnd + 1
             Loop
-            sRun = Mid$(msText, lPosition, lEnd - lPosition + 1)
-            sName = ControlName("Run" & CStr(lPosition))
-            Set oLabel = moHost.Controls.Add("Forms.Label.1", sName, False)
-            TrackControl sName
-            With oLabel
-                .Caption = sRun
-                .WordWrap = False
-                .Left = sngLeft
-                .Top = sngTop
-                ApplyFormat oLabel, lPosition
-                .AutoSize = True
-                .Visible = True
-                .ZOrder 0
-            End With
-            If oLabel.Height > sngLineHeight Then sngLineHeight = oLabel.Height
-            sngLeft = sngLeft + oLabel.Width
-            If sngLeft > sngContentWidth Then sngContentWidth = sngLeft
+            sRun = mid$(msText, lPosition, lEnd - lPosition + 1)
+            If mbWordWrap Then
+                lFragmentStart = lPosition
+                Do While lFragmentStart <= lEnd
+                    lFragmentEnd = WordFragmentEnd(lFragmentStart, lEnd)
+                    RenderFragment mid$(msText, lFragmentStart, lFragmentEnd - lFragmentStart + 1), _
+                        lFragmentStart, sngLeft, sngTop, sngLineHeight, _
+                        sngDefaultLineHeight, sngContentWidth
+                    lFragmentStart = lFragmentEnd + 1
+                Loop
+            Else
+                RenderFragment sRun, lPosition, sngLeft, sngTop, sngLineHeight, _
+                    sngDefaultLineHeight, sngContentWidth
+            End If
             lPosition = lEnd + 1
         End If
     Loop
     SetScrollbars sngContentWidth + 3, sngTop + sngLineHeight + 3
+End Sub
+
+' Return the final character in the next word-and-spacing fragment.
+Private Function WordFragmentEnd(ByVal lStart As Long, ByVal lRunEnd As Long) As Long
+    Dim lPosition As Long
+
+    lPosition = lStart
+    If IsWrapSpace(mid$(msText, lPosition, 1)) Then
+        Do While lPosition < lRunEnd And IsWrapSpace(mid$(msText, lPosition, 1))
+            lPosition = lPosition + 1
+        Loop
+        Do While lPosition < lRunEnd And Not IsWrapSpace(mid$(msText, lPosition + 1, 1))
+            lPosition = lPosition + 1
+        Loop
+    Else
+        Do While lPosition < lRunEnd And Not IsWrapSpace(mid$(msText, lPosition + 1, 1))
+            lPosition = lPosition + 1
+        Loop
+        Do While lPosition < lRunEnd And IsWrapSpace(mid$(msText, lPosition + 1, 1))
+            lPosition = lPosition + 1
+        Loop
+    End If
+    WordFragmentEnd = lPosition
+End Function
+
+' Return whether a character is spacing at which rendered text may wrap.
+Private Function IsWrapSpace(ByVal sCharacter As String) As Boolean
+    IsWrapSpace = (sCharacter = " " Or sCharacter = vbTab)
+End Function
+
+' Create and position one explicitly measured fragment of a formatted run.
+Private Sub RenderFragment(ByVal sRun As String, ByVal lPosition As Long, _
+        ByRef sngLeft As Single, ByRef sngTop As Single, _
+        ByRef sngLineHeight As Single, ByVal sngDefaultLineHeight As Single, _
+        ByRef sngContentWidth As Single)
+    Dim sName As String
+    Dim oLabel As MSForms.Label
+
+    sName = ControlName("Run" & CStr(lPosition))
+    Set oLabel = moHost.Controls.Add("Forms.Label.1", sName, False)
+    TrackControl sName
+    With oLabel
+        .Caption = sRun
+        .WordWrap = False
+        ApplyFormat oLabel, lPosition
+        .AutoSize = True
+        If mbWordWrap And sngLeft > 3 And sngLeft + .Width > moHost.InsideWidth - 3 Then
+            sngLeft = 3
+            sngTop = sngTop + sngLineHeight
+            sngLineHeight = sngDefaultLineHeight
+            .Caption = LTrim$(sRun)
+            .AutoSize = False
+            .AutoSize = True
+        End If
+        .Left = sngLeft
+        .Top = sngTop
+        .Visible = True
+        .ZOrder 0
+    End With
+    If oLabel.Height > sngLineHeight Then sngLineHeight = oLabel.Height
+    sngLeft = sngLeft + oLabel.Width
+    If sngLeft > sngContentWidth Then sngContentWidth = sngLeft
 End Sub
 
 ' Size the virtual canvas and enable only the scrollbars required by rendered content.
@@ -916,8 +987,8 @@ Private Sub ApplyFormat(ByVal oLabel As MSForms.Label, ByVal lPosition As Long)
     Dim vFormat As Variant
     vFormat = CharacterFormat(lPosition)
     With oLabel
-        .Font.Name = CStr(vFormat(MC_FONT_NAME))
-        .Font.Size = CSng(vFormat(MC_FONT_SIZE))
+        .Font.name = CStr(vFormat(MC_FONT_NAME))
+        .Font.size = CSng(vFormat(MC_FONT_SIZE))
         If CBool(vFormat(MC_BOLD)) Then .Font.Bold = True Else .Font.Bold = False
         If CBool(vFormat(MC_ITALIC)) Then .Font.Italic = True Else .Font.Italic = False
         If CBool(vFormat(MC_UNDERLINE)) Then .Font.Underline = True Else .Font.Underline = False
