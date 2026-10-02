@@ -1,5 +1,6 @@
 # Generated VBA export/build output
 *.log
+vba-rich-text-box-control.aspx
 
 # Excel temporary lock files
 ~$*.xls*
