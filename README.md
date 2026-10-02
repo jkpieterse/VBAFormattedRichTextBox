@@ -18,6 +18,7 @@ For background and a longer explanation, see the accompanying article:
 |---|---|
 | `clsRichTextBox.cls` | The reusable rich text control. Owns parsing, rendering, editing, keyboard handling, resizing, and cleanup. |
 | `clsRichTextCharacters.cls` | An Excel-`Characters`-like object for reading and writing formatting on a one-based character range. |
+| `clsRichTextLinkLabel.cls` | Event sink that forwards clicks on rendered hyperlink labels to the rich text control. |
 | `ufRichTextDemo.frm` and `ufRichTextDemo.frx` | Exported demo `UserForm` showing the required host wiring and editing commands. |
 | `modRichTextDemo.bas` | Demo entry point. Run `DemoNow` to open the demonstration form. |
 | `RichText Demo 1.0.xlsm` | Ready-to-run demonstration workbook with documentation sheets. |
@@ -26,7 +27,7 @@ For background and a longer explanation, see the accompanying article:
 
 ## Getting started
 
-1. Import `clsRichTextCharacters.cls` and `clsRichTextBox.cls` into your VBA project.
+1. Import `clsRichTextCharacters.cls`, `clsRichTextLinkLabel.cls`, and `clsRichTextBox.cls` into your VBA project.
 2. Add an `MSForms.Frame` to a `UserForm`.
 3. Create the control and attach it to the frame. Enable `WordWrap` when text
   should wrap within the host frame:
@@ -82,6 +83,7 @@ The parser supports the following HTML-like tags:
 - `<i>` and `<em>`
 - `<u>`
 - `<s>`
+- `<link=target>`
 - `<font color="#RRGGBB">`
 - `<span style="color:#RRGGBB;background-color:#RRGGBB;font-size:12">`
 - `<size=12>`
@@ -90,13 +92,28 @@ Setting `Markup` parses the source into per-character formatting. Setting `Text`
 replaces the content with unformatted plain text. Invalid markup raises `ParseError`
 and preserves the last valid content.
 
+The control raises `LinkClick` with the link target; it does not open links itself.
+The host decides what each target means. The demo uses `url:<address>` for external
+websites and `sheet:<worksheet name>!<range address>` for a worksheet range in the
+current workbook. Worksheet names containing spaces can be enclosed in apostrophes.
+The range address may contain comma-separated areas, such as `A1,A3`.
+Link appearance comes from formatting tags around the linked caption, as in
+RefTreeAnalyser: `<link=url:https://jkp-ads.com><u><font color="#0563C1">jkp-ads.com</font></u></link>`.
+The link tag handles clicks; the nested underline and font-color tags make the link
+visually distinct.
+
+For example, `<link=url:https://jkp-ads.com>jkp-ads.com</link>` opens the website,
+while `<link=sheet:Overview!A1,A3>Overview cells A1 and A3</link>` activates the
+`Overview` sheet and selects both cells. The `url:` and `sheet:` prefixes let the
+event handler distinguish external URLs from workbook range addresses.
+
 ## Key members
 
 - **Content**: `Text`, `Markup`, `ReadOnly`
 - **Appearance**: `WordWrap`, `DefaultFontName`, `DefaultFontSize`, `DefaultForeColor`, `DefaultBackColor`
 - **Editing**: `BeginEdit`, `BeginSourceEdit`, `ToggleEditMode`, `CommitEdit`, `CancelEdit`
 - **Lifecycle**: `SetFocus`, `EnterExit`, `Resize`, `Terminate`
-- **Events**: `Change`, `EditCommitted`, `EditCancelled`, `ParseError`
+- **Events**: `Change`, `EditCommitted`, `EditCancelled`, `ParseError`, `LinkClick`, `DiagnosticCheckpoint`
 
 ## Keyboard editing
 

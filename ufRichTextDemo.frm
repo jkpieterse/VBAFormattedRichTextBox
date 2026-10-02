@@ -111,11 +111,68 @@ Private Sub mcRichText_ParseError(ByVal Message As String)
     Me.labInfo.Caption = "Markup error: " & Message
 End Sub
 
+' Route demo links by their target prefix: url: opens a website; sheet: activates a worksheet.
+Private Sub mcRichText_LinkClick(ByVal LinkTarget As String)
+    Dim lSeparator As Long
+    Dim sLinkType As String
+    Dim sLinkValue As String
+    Dim sWorksheetName As String
+    Dim sRangeAddress As String
+    Dim oWorksheet As Worksheet
+    Dim oRange As Range
+
+    lSeparator = InStr(1, LinkTarget, ":", vbBinaryCompare)
+    If lSeparator < 2 Then
+        Me.labInfo.Caption = "Unsupported link target: " & LinkTarget
+        Exit Sub
+    End If
+    sLinkType = LCase$(Left$(LinkTarget, lSeparator - 1))
+    sLinkValue = Mid$(LinkTarget, lSeparator + 1)
+    Select Case sLinkType
+        Case "url"
+            If Len(sLinkValue) = 0 Then Exit Sub
+            ThisWorkbook.FollowHyperlink Address:=sLinkValue
+        Case "sheet"
+            lSeparator = InStrRev(sLinkValue, "!")
+            If lSeparator < 2 Or lSeparator >= Len(sLinkValue) Then
+                Me.labInfo.Caption = "Worksheet links must use sheet:<worksheet name>!<range address>."
+                Exit Sub
+            End If
+            sWorksheetName = Trim$(Left$(sLinkValue, lSeparator - 1))
+            If Left$(sWorksheetName, 1) = "'" And Right$(sWorksheetName, 1) = "'" Then
+                sWorksheetName = Replace$(Mid$(sWorksheetName, 2, Len(sWorksheetName) - 2), "''", "'")
+            End If
+            sRangeAddress = Trim$(Mid$(sLinkValue, lSeparator + 1))
+            On Error Resume Next
+            Set oWorksheet = ThisWorkbook.Worksheets(sWorksheetName)
+            On Error GoTo 0
+            If oWorksheet Is Nothing Then
+                Me.labInfo.Caption = "Worksheet not found: " & sWorksheetName
+                Exit Sub
+            End If
+            On Error Resume Next
+            Set oRange = oWorksheet.Range(sRangeAddress)
+            If Err.Number <> 0 Then
+                Err.Clear
+                On Error GoTo 0
+                Me.labInfo.Caption = "Invalid worksheet range: " & sLinkValue
+                Exit Sub
+            End If
+            On Error GoTo 0
+            oWorksheet.Activate
+            oRange.Select
+        Case Else
+            Me.labInfo.Caption = "Unsupported link type: " & sLinkType
+    End Select
+End Sub
+
 '---------------------------------------------------------------------------------------
 ' Optional demo content. Replace this routine with the markup your own form needs.
 '---------------------------------------------------------------------------------------
 Private Function SampleMarkup() As String
     SampleMarkup = "<size=14><b>This Rich Text Box uses HTML-like markup tags to set character formatting.</b></size>" & vbNewLine & vbNewLine
+    SampleMarkup = SampleMarkup & "Use url: targets for websites and sheet:SheetName!A1,A3 for workbook ranges. Quote worksheet names with spaces; comma-separated areas are supported." & vbNewLine
+    SampleMarkup = SampleMarkup & "Visit <link=url:https://jkp-ads.com><u><font color=""#0563C1"">jkp-ads.com</font></u></link> or select <link=sheet:Overview!A1,A3><u><font color=""#0563C1"">Overview cells A1 and A3</font></u></link>." & vbNewLine & vbNewLine
     SampleMarkup = SampleMarkup & "Examples:" & vbNewLine & vbNewLine
     SampleMarkup = SampleMarkup & "&lt;b&gt;bold&lt;/b&gt; gives <b>bold</b> text." & vbNewLine
     SampleMarkup = SampleMarkup & "&lt;i&gt;italic&lt;/i&gt; gives <i>italic</i> text." & vbNewLine

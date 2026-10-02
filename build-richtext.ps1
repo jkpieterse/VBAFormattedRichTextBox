@@ -20,7 +20,7 @@ try {
     foreach ($name in @('ufDemo','UserForm1','ufRichTextDemo','clsNode','clsTreeView','modAddIcons','modDemo','modDocNav')) {
         try { $vb.VBComponents.Remove($vb.VBComponents.Item($name)) } catch {}
     }
-    foreach ($file in @('clsRichTextCharacters.cls','clsRichTextBox.cls')) {
+    foreach ($file in @('clsRichTextCharacters.cls','clsRichTextLinkLabel.cls','clsRichTextBox.cls')) {
         $vb.VBComponents.Import((Join-Path $PSScriptRoot $file)) | Out-Null
     }
     $module = $vb.VBComponents.Import((Join-Path $PSScriptRoot 'modRichTextDemo.bas'))
@@ -56,7 +56,7 @@ Private Sub UserForm_Initialize()
     Set mcRichText = New clsRichTextBox
     Set mcRichText.HostFrame = Me.frRichText
     mcRichText.WordWrap = True
-    mcRichText.Markup = "This is <b>bold</b>, <i>italic</i>, <u>underlined</u>, and <span style=""color:#1F5F92"">colored</span>."
+    mcRichText.Markup = "This is <b>bold</b>, <i>italic</i>, <u>underlined</u>, and <span style=""color:#1F5F92"">colored</span>. Use url: targets for websites and sheet:SheetName!A1,A3 for workbook ranges. <link=url:https://jkp-ads.com><u><font color=""#0563C1"">jkp-ads.com</font></u></link> or <link=sheet:Overview!A1,A3><u><font color=""#0563C1"">Overview cells A1 and A3</font></u></link>."
     UpdateInfo
 End Sub
 
@@ -79,7 +79,7 @@ Private Sub cmdCancel_Click()
 End Sub
 
 Private Sub cmdReset_Click()
-    mcRichText.Markup = "This is <b>bold</b>, <i>italic</i>, <u>underlined</u>, and <span style=""color:#1F5F92"">colored</span>."
+    mcRichText.Markup = "This is <b>bold</b>, <i>italic</i>, <u>underlined</u>, and <span style=""color:#1F5F92"">colored</span>. Use url: targets for websites and sheet:SheetName!A1,A3 for workbook ranges. <link=url:https://jkp-ads.com><u><font color=""#0563C1"">jkp-ads.com</font></u></link> or <link=sheet:Overview!A1,A3><u><font color=""#0563C1"">Overview cells A1 and A3</font></u></link>."
     UpdateInfo
 End Sub
 
@@ -93,6 +93,46 @@ End Sub
 
 Private Sub mcRichText_ParseError(ByVal Message As String)
     Me.labInfo.Caption = "Markup error: " & Message
+End Sub
+
+Private Sub mcRichText_LinkClick(ByVal LinkTarget As String)
+    Dim lSeparator As Long
+    Dim sLinkType As String
+    Dim sLinkValue As String
+    Dim sWorksheetName As String
+    Dim sRangeAddress As String
+    Dim oWorksheet As Worksheet
+    Dim oRange As Range
+    lSeparator = InStr(1, LinkTarget, ":", vbBinaryCompare)
+    If lSeparator < 2 Then Exit Sub
+    sLinkType = LCase$(Left$(LinkTarget, lSeparator - 1))
+    sLinkValue = Mid$(LinkTarget, lSeparator + 1)
+    Select Case sLinkType
+        Case "url"
+            If Len(sLinkValue) > 0 Then ThisWorkbook.FollowHyperlink Address:=sLinkValue
+        Case "sheet"
+            lSeparator = InStrRev(sLinkValue, "!")
+            If lSeparator < 2 Or lSeparator >= Len(sLinkValue) Then Exit Sub
+            sWorksheetName = Trim$(Left$(sLinkValue, lSeparator - 1))
+            If Left$(sWorksheetName, 1) = "'" And Right$(sWorksheetName, 1) = "'" Then
+                sWorksheetName = Replace$(Mid$(sWorksheetName, 2, Len(sWorksheetName) - 2), "''", "'")
+            End If
+            sRangeAddress = Trim$(Mid$(sLinkValue, lSeparator + 1))
+            On Error Resume Next
+            Set oWorksheet = ThisWorkbook.Worksheets(sWorksheetName)
+            On Error GoTo 0
+            If oWorksheet Is Nothing Then Exit Sub
+            On Error Resume Next
+            Set oRange = oWorksheet.Range(sRangeAddress)
+            If Err.Number <> 0 Then
+                Err.Clear
+                On Error GoTo 0
+                Exit Sub
+            End If
+            On Error GoTo 0
+            oWorksheet.Activate
+            oRange.Select
+    End Select
 End Sub
 
 Private Sub frRichText_Resize()
@@ -173,7 +213,7 @@ End Sub
     $overview = $wb.Worksheets.Item('Overview')
     $overview.Range('A1').Value = 'RichText Demo 1.0'
     $overview.Range('A3').Value = 'All-VBA MSForms rich text box overview'
-    $overview.Range('A5').Value = 'This workbook demonstrates clsRichTextBox, a reusable control class that renders formatted text inside a design-time MSForms.Frame by creating dynamic Label controls for contiguous formatting runs and a temporary TextBox while editing.'
+    $overview.Range('A5').Value = 'This workbook demonstrates clsRichTextBox, a reusable control class that renders formatted text inside a design-time MSForms.Frame by creating dynamic Label controls for contiguous formatting runs and a temporary TextBox while editing. Its sample includes a website link and a link to the Overview worksheet.'
     $overview.Range('A7').Value = 'The public entry point is modRichTextDemo.DemoNow, which opens ufRichTextDemo. The form shows the required host wiring and optional buttons for plain-text editing, markup editing, commit, cancel, and reset.'
     $button = $overview.Buttons().Add(12, 156, 150, 24)
     $button.Caption = 'Open RichText demo'
@@ -197,7 +237,7 @@ End Sub
         @('CommitEdit / CancelEdit','Methods','Accept or discard the current TextBox edit.'),
         @('HandleKeyDown','Method','Lets the host forward F2, Ctrl+Enter, Escape, and markup/text toggle keys.'),
         @('SetFocus / EnterExit / Resize / Terminate','Methods','Host lifecycle methods for focus indication, keyboard ownership, dynamic sizing, and generated-control cleanup.'),
-        @('Change / EditCommitted / EditCancelled / ParseError','Events','Notify the host when content changes, editing finishes or cancels, or markup cannot be parsed.')
+        @('Change / EditCommitted / EditCancelled / ParseError / LinkClick','Events','Notify the host when content changes, editing finishes or cancels, markup cannot be parsed, or a rendered link is clicked. The host handles LinkClick targets, such as url:<address> and sheet:<worksheet name>!<range address>; comma-separated range areas are supported.')
     )
 
     $chars = $wb.Worksheets.Item('clsRichTextCharacters')
@@ -230,7 +270,8 @@ End Sub
         @('frRichText_Resize','Yes','Calls Resize so generated labels and edit controls stay aligned to the host Frame.'),
         @('UserForm_QueryClose','Yes','Calls Terminate and releases the class before the form unloads.'),
         @('cmdEdit / cmdSource / cmdCommit / cmdCancel / cmdReset','No','Demo-only buttons that expose plain-text edit, markup edit, commit, cancel, and sample reset commands.'),
-        @('labInfo and lblLink','No','Demo-only status and documentation link controls; they are not required when embedding the class in another form.')
+        @('labInfo and lblLink','No','Demo-only status and documentation link controls; they are not required when embedding the class in another form.'),
+        @('mcRichText_LinkClick','No','Demo handler routes url:<address> to a web link and sheet:<worksheet name>!<range address> to a selection in this workbook; comma-separated range areas are supported.')
     )
 
     $ver = $wb.Worksheets.Item('Versions')
@@ -240,7 +281,7 @@ End Sub
         @('Version','Date','Notes'),
         @('1.0','16-Sep-2026','Standalone RichText demonstration workbook with RichText-specific overview, class reference, host wiring notes, and properly labeled demo launcher button.')
     )
-    foreach ($name in @('ufRichTextDemo','modRichTextDemo','clsRichTextCharacters','clsRichTextBox')) {
+    foreach ($name in @('ufRichTextDemo','modRichTextDemo','clsRichTextCharacters','clsRichTextLinkLabel','clsRichTextBox')) {
         $extension = if ($name -eq 'ufRichTextDemo') { '.frm' } elseif ($name -eq 'modRichTextDemo') { '.bas' } else { '.cls' }
         $vb.VBComponents.Item($name).Export((Join-Path $PSScriptRoot ($name + $extension)))
     }

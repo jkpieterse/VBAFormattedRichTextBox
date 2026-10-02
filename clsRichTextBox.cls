@@ -13,7 +13,7 @@ Attribute VB_Exposed = False
 '---------------------------------------------------------------------------------------
 Option Explicit
 
-Private Const MC_FORMAT_COUNT As Long = 10
+Private Const MC_FORMAT_COUNT As Long = 11
 Private Const MC_FONT_NAME As Long = 0
 Private Const MC_FONT_SIZE As Long = 1
 Private Const MC_BOLD As Long = 2
@@ -24,6 +24,7 @@ Private Const MC_WEIGHT As Long = 6
 Private Const MC_CHARSET As Long = 7
 Private Const MC_FORE_COLOR As Long = 8
 Private Const MC_BACK_COLOR As Long = 9
+Private Const MC_LINK_TARGET As Long = 10
 
 Private moHost As MSForms.Frame
 Private WithEvents moEditBox As MSForms.TextBox
@@ -34,11 +35,13 @@ Private mlTextLength As Long
 Private msText As String
 Private mvFormats() As Variant
 Private mcolControlNames As Collection
+Private mcolLinkLabels As Collection
 Private msEditText As String
 Private mbSourceMode As Boolean
 Private mbReadOnly As Boolean
 Private mbWordWrap As Boolean
 Private mbUpdating As Boolean
+Private mbDiagnosticsEnabled As Boolean
 Private msDefaultFontName As String
 Private msDefaultFontSize As Single
 Private mlDefaultForeColor As Long
@@ -50,14 +53,29 @@ Public Event Change()
 Public Event EditCommitted(ByVal SourceMode As Boolean)
 Public Event EditCancelled()
 Public Event ParseError(ByVal Message As String)
+Public Event LinkClick(ByVal LinkTarget As String)
+Public Event DiagnosticCheckpoint(ByVal Checkpoint As String)
 
 Private Const MC_KEY_CTRL As Long = 2
 Private Const MC_KEY_SHIFT As Long = 1
+
+Public Sub HandleLinkClick(ByVal sLinkTarget As String)
+    RaiseEvent LinkClick(sLinkTarget)
+End Sub
+
+Public Property Let DiagnosticsEnabled(ByVal bEnabled As Boolean)
+    mbDiagnosticsEnabled = bEnabled
+End Property
+
+Private Sub TraceCheckpoint(ByVal sCheckpoint As String)
+    If mbDiagnosticsEnabled Then RaiseEvent DiagnosticCheckpoint(sCheckpoint)
+End Sub
 
 '=======================================================================================
 ' HOST INTEGRATION: assign the design-time MSForms.Frame that owns generated controls.
 '=======================================================================================
 Public Property Set HostFrame(ByVal oFrame As MSForms.Frame)
+    TraceCheckpoint "HostFrame.Set.Start"
     Set moHost = oFrame
     msDefaultFontName = oFrame.Font.name
     msDefaultFontSize = oFrame.Font.size
@@ -65,8 +83,12 @@ Public Property Set HostFrame(ByVal oFrame As MSForms.Frame)
     mlDefaultBackColor = oFrame.BackColor
     mlHostBorderColor = oFrame.BorderColor
     mlHostBorderStyle = oFrame.BorderStyle
+    TraceCheckpoint "HostFrame.Set.BeforeFocusProxy"
     EnsureFocusProxy
+    TraceCheckpoint "HostFrame.Set.AfterFocusProxy"
+    TraceCheckpoint "HostFrame.Set.BeforeRender"
     Render
+    TraceCheckpoint "HostFrame.Set.AfterRender"
 End Property
 
 ' Return the currently assigned host Frame.
@@ -114,12 +136,16 @@ End Property
 ' Parse markup into text and per-character formatting.
 Public Property Let Markup(ByVal sValue As String)
     Dim sPreviousMarkup As String
+    TraceCheckpoint "Markup.Set.Start"
     sPreviousMarkup = ToMarkup
     If Not ParseMarkup(sValue) Then
+        TraceCheckpoint "Markup.Set.ParseFailed"
         ParseMarkup sPreviousMarkup
         Exit Property
     End If
+    TraceCheckpoint "Markup.Set.AfterParse"
     Render
+    TraceCheckpoint "Markup.Set.AfterRender"
     RaiseEvent Change
 End Property
 
@@ -639,6 +665,8 @@ Private Function ApplyTag(ByVal sRawTag As String, ByRef vFormat As Variant, ByV
         vFormat = FormatWithValue(vFormat, MC_ITALIC, True)
     ElseIf sTag = "u" Then
         vFormat = FormatWithValue(vFormat, MC_UNDERLINE, True)
+    ElseIf Left$(sTag, 5) = "link=" Then
+        vFormat = FormatWithValue(vFormat, MC_LINK_TARGET, mid$(sRawTag, 6))
     ElseIf sTag = "s" Or sTag = "strike" Then
         vFormat = FormatWithValue(vFormat, MC_STRIKETHROUGH, True)
     ElseIf Left$(sTag, 5) = "size=" Then
@@ -747,6 +775,7 @@ Private Function DefaultFormat() As Variant
     vFormat(MC_CHARSET) = Empty
     vFormat(MC_FORE_COLOR) = mlDefaultForeColor
     vFormat(MC_BACK_COLOR) = mlDefaultBackColor
+    vFormat(MC_LINK_TARGET) = vbNullString
     DefaultFormat = vFormat
 End Function
 
@@ -806,6 +835,7 @@ End Function
 ' Open canonical tags for one contiguous formatting run.
 Private Function OpenMarkup(ByVal vFormat As Variant) As String
     Dim sResult As String
+    If Len(CStr(vFormat(MC_LINK_TARGET))) > 0 Then sResult = sResult & "<link=" & CStr(vFormat(MC_LINK_TARGET)) & ">"
     If CBool(vFormat(MC_BOLD)) Then sResult = sResult & "<b>"
     If CBool(vFormat(MC_ITALIC)) Then sResult = sResult & "<i>"
     If CBool(vFormat(MC_UNDERLINE)) Then sResult = sResult & "<u>"
@@ -828,6 +858,7 @@ Private Function CloseMarkup(ByVal vFormat As Variant) As String
     If CBool(vFormat(MC_UNDERLINE)) Then sResult = sResult & "</u>"
     If CBool(vFormat(MC_ITALIC)) Then sResult = sResult & "</i>"
     If CBool(vFormat(MC_BOLD)) Then sResult = sResult & "</b>"
+    If Len(CStr(vFormat(MC_LINK_TARGET))) > 0 Then sResult = sResult & "</link>"
     CloseMarkup = sResult
 End Function
 
@@ -855,10 +886,16 @@ Private Sub Render()
     Dim sngLineHeight As Single
     Dim sngDefaultLineHeight As Single
     Dim sngContentWidth As Single
-    If moHost Is Nothing Or mbUpdating Then Exit Sub
+    TraceCheckpoint "Render.Start"
+    If moHost Is Nothing Or mbUpdating Then
+        TraceCheckpoint "Render.Skipped"
+        Exit Sub
+    End If
     RemoveControls
+    TraceCheckpoint "Render.AfterRemoveControls"
     If mlTextLength = 0 Then
         SetScrollbars 0, 0
+        TraceCheckpoint "Render.EmptyComplete"
         Exit Sub
     End If
     sngLeft = 3
@@ -883,6 +920,7 @@ Private Sub Render()
                 lEnd = lEnd + 1
             Loop
             sRun = mid$(msText, lPosition, lEnd - lPosition + 1)
+            TraceCheckpoint "Render.Run.Start." & CStr(lPosition)
             If mbWordWrap Then
                 lFragmentStart = lPosition
                 Do While lFragmentStart <= lEnd
@@ -896,10 +934,12 @@ Private Sub Render()
                 RenderFragment sRun, lPosition, sngLeft, sngTop, sngLineHeight, _
                     sngDefaultLineHeight, sngContentWidth
             End If
+            TraceCheckpoint "Render.Run.Complete." & CStr(lPosition)
             lPosition = lEnd + 1
         End If
     Loop
     SetScrollbars sngContentWidth + 3, sngTop + sngLineHeight + 3
+    TraceCheckpoint "Render.Complete"
 End Sub
 
 ' Return the final character in the next word-and-spacing fragment.
@@ -937,7 +977,10 @@ Private Sub RenderFragment(ByVal sRun As String, ByVal lPosition As Long, _
         ByRef sngContentWidth As Single)
     Dim sName As String
     Dim oLabel As MSForms.Label
+    Dim sLinkTarget As String
+    Dim cLinkLabel As clsRichTextLinkLabel
 
+    TraceCheckpoint "RenderFragment.Start." & CStr(lPosition)
     sName = ControlName("Run" & CStr(lPosition))
     Set oLabel = moHost.Controls.Add("Forms.Label.1", sName, False)
     TrackControl sName
@@ -959,9 +1002,22 @@ Private Sub RenderFragment(ByVal sRun As String, ByVal lPosition As Long, _
         .Visible = True
         .ZOrder 0
     End With
+    TraceCheckpoint "RenderFragment.LabelReady." & CStr(lPosition)
+    sLinkTarget = CStr(CharacterFormatValue(lPosition, MC_LINK_TARGET))
+    If Len(sLinkTarget) > 0 Then
+        oLabel.MousePointer = fmMousePointerUpArrow
+        If mcolLinkLabels Is Nothing Then Set mcolLinkLabels = New Collection
+        Set cLinkLabel = New clsRichTextLinkLabel
+        Set cLinkLabel.Label = oLabel
+        Set cLinkLabel.Owner = Me
+        cLinkLabel.LinkTarget = sLinkTarget
+        mcolLinkLabels.Add cLinkLabel
+        TraceCheckpoint "RenderFragment.LinkSinkReady." & CStr(lPosition)
+    End If
     If oLabel.Height > sngLineHeight Then sngLineHeight = oLabel.Height
     sngLeft = sngLeft + oLabel.Width
     If sngLeft > sngContentWidth Then sngContentWidth = sngLeft
+    TraceCheckpoint "RenderFragment.Complete." & CStr(lPosition)
 End Sub
 
 ' Size the virtual canvas and enable only the scrollbars required by rendered content.
@@ -1016,6 +1072,7 @@ End Sub
 Private Sub RemoveControls()
     Dim vName As Variant
     If mcolControlNames Is Nothing Then Set mcolControlNames = New Collection
+    Set mcolLinkLabels = Nothing
     On Error Resume Next
     For Each vName In mcolControlNames
         moHost.Controls.Remove CStr(vName)
